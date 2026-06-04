@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 
 export interface DataTableColumn<T> {
-  key: keyof T & string;
+  key: string;
   label: string;
   align?: "left" | "right" | "center";
   render?: (row: T) => ReactNode;
