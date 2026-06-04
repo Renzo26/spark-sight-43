@@ -127,7 +127,7 @@ export function DataTable<T>({
                         c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "text-left",
                       ].join(" ")}
                     >
-                      {c.render ? c.render(row) : String(row[c.key] ?? "—")}
+                      {c.render ? c.render(row) : String((row as Record<string, unknown>)[c.key] ?? "—")}
                     </td>
                   ))}
                 </tr>
