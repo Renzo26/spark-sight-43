@@ -9,9 +9,15 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as MidiaRouteImport } from './routes/midia'
 import { Route as DetalhamentoRouteImport } from './routes/detalhamento'
 import { Route as IndexRouteImport } from './routes/index'
 
+const MidiaRoute = MidiaRouteImport.update({
+  id: '/midia',
+  path: '/midia',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DetalhamentoRoute = DetalhamentoRouteImport.update({
   id: '/detalhamento',
   path: '/detalhamento',
@@ -26,31 +32,42 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/detalhamento': typeof DetalhamentoRoute
+  '/midia': typeof MidiaRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/detalhamento': typeof DetalhamentoRoute
+  '/midia': typeof MidiaRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/detalhamento': typeof DetalhamentoRoute
+  '/midia': typeof MidiaRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/detalhamento'
+  fullPaths: '/' | '/detalhamento' | '/midia'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/detalhamento'
-  id: '__root__' | '/' | '/detalhamento'
+  to: '/' | '/detalhamento' | '/midia'
+  id: '__root__' | '/' | '/detalhamento' | '/midia'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DetalhamentoRoute: typeof DetalhamentoRoute
+  MidiaRoute: typeof MidiaRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/midia': {
+      id: '/midia'
+      path: '/midia'
+      fullPath: '/midia'
+      preLoaderRoute: typeof MidiaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/detalhamento': {
       id: '/detalhamento'
       path: '/detalhamento'
@@ -71,7 +88,18 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DetalhamentoRoute: DetalhamentoRoute,
+  MidiaRoute: MidiaRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
