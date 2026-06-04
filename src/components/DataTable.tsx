@@ -30,7 +30,7 @@ export function DataTable<T>({
     if (!col) return rows;
     const get = (r: T): number | string | null => {
       if (col.sortValue) return col.sortValue(r);
-      const v = r[col.key];
+      const v = (r as Record<string, unknown>)[col.key];
       return typeof v === "number" || typeof v === "string" ? v : null;
     };
     const sign = sort.dir === "asc" ? 1 : -1;
