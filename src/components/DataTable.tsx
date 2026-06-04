@@ -19,7 +19,7 @@ export interface DataTableProps<T> {
   highlightBest?: { key: string; better: "lower" | "higher" };
 }
 
-export function DataTable<T extends Record<string, unknown>>({
+export function DataTable<T>({
   columns, rows, initialSort, emptyMessage = "Sem dados no período.", highlightBest,
 }: DataTableProps<T>) {
   const [sort, setSort] = useState(initialSort ?? null);
