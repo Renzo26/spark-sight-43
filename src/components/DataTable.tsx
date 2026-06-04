@@ -49,7 +49,7 @@ export function DataTable<T>({
     const col = columns.find((c) => c.key === highlightBest.key);
     if (!col) return { best: null, worst: null };
     const get = (r: T): number | null => {
-      const v = col.sortValue ? col.sortValue(r) : r[col.key];
+      const v = col.sortValue ? col.sortValue(r) : (r as Record<string, unknown>)[col.key];
       return typeof v === "number" && isFinite(v) ? v : null;
     };
     const withVal = sorted.map((r) => ({ r, v: get(r) })).filter((x) => x.v != null) as { r: T; v: number }[];
