@@ -55,61 +55,30 @@ export interface FilteredData {
 export function applyFilters(data: SheetsData, f: DashboardFilters): FilteredData {
   const fb = data.facebookAds.filter((r) => inRange(r.data, f.dataInicio, f.dataFim));
   const gg = data.googleAds.filter((r) => inRange(r.data, f.dataInicio, f.dataFim));
-  const fases = data.fases.filter(
-    (r) =>
-      inRange(r.data, f.dataInicio, f.dataFim) &&
-      (f.fase === "Todas" || r.fase === f.fase),
-  );
+  const fases = data.fases.filter((r) => inRange(r.data, f.dataInicio, f.dataFim));
 
-  // Recalcula somatório a partir das plataformas filtradas para refletir filtro de Plataforma.
-  const usaFb = f.plataforma === "Todas" || f.plataforma === "Facebook Ads";
-  const usaGg = f.plataforma === "Todas" || f.plataforma === "Google Ads";
-
+  // Somatório recalculado a partir de Facebook + Google (sem filtro de plataforma).
   const byDate = new Map<ISODate, SomatorioRow>();
-  if (usaFb) {
-    for (const r of fb) {
-      const cur = byDate.get(r.data) ?? {
-        data: r.data,
-        investimento: 0,
-        impressoes: 0,
-        alcance: 0,
-        cliques: 0,
-        leads: 0,
-      };
-      cur.investimento += r.investimento;
-      cur.impressoes += r.impressoes;
-      cur.alcance += r.alcance;
-      cur.cliques += r.cliques;
-      cur.leads += r.leads;
-      byDate.set(r.data, cur);
-    }
-  }
-  if (usaGg) {
-    for (const r of gg) {
-      const cur = byDate.get(r.data) ?? {
-        data: r.data,
-        investimento: 0,
-        impressoes: 0,
-        alcance: 0,
-        cliques: 0,
-        leads: 0,
-      };
-      cur.investimento += r.investimento;
-      cur.impressoes += r.impressoes;
-      cur.cliques += r.cliques;
-      cur.leads += r.leads;
-      byDate.set(r.data, cur);
-    }
-  }
+  const upsert = (r: {
+    data: ISODate; investimento: number; impressoes: number;
+    alcance?: number; cliques: number; leads: number;
+  }) => {
+    const cur = byDate.get(r.data) ?? {
+      data: r.data, investimento: 0, impressoes: 0, alcance: 0, cliques: 0, leads: 0,
+    };
+    cur.investimento += r.investimento;
+    cur.impressoes += r.impressoes;
+    cur.alcance += r.alcance ?? 0;
+    cur.cliques += r.cliques;
+    cur.leads += r.leads;
+    byDate.set(r.data, cur);
+  };
+  fb.forEach(upsert);
+  gg.forEach(upsert);
 
   const somatorio = Array.from(byDate.values()).sort((a, b) => a.data.localeCompare(b.data));
 
-  return {
-    somatorio,
-    facebookAds: usaFb ? fb : [],
-    googleAds: usaGg ? gg : [],
-    fases,
-  };
+  return { somatorio, facebookAds: fb, googleAds: gg, fases };
 }
 
 // ---------- KPIs ----------
@@ -203,6 +172,73 @@ export function serieTemporal(filtered: FilteredData): SerieDia[] {
   }));
 }
 
+// ---------- Comparativo por plataforma (série temporal) ----------
+export interface SeriePlataformaDia {
+  data: ISODate;
+  label: string;
+  facebookInv: number;
+  googleInv: number;
+  totalInv: number;
+  facebookLeads: number;
+  googleLeads: number;
+  totalLeads: number;
+}
+
+export function serieInvestimentoPlataforma(filtered: FilteredData): SeriePlataformaDia[] {
+  const map = new Map<ISODate, { fbI: number; ggI: number; fbL: number; ggL: number }>();
+  const get = (d: ISODate) => {
+    const cur = map.get(d) ?? { fbI: 0, ggI: 0, fbL: 0, ggL: 0 };
+    map.set(d, cur);
+    return cur;
+  };
+  for (const r of filtered.facebookAds) {
+    const c = get(r.data);
+    c.fbI += r.investimento;
+    c.fbL += r.leads;
+  }
+  for (const r of filtered.googleAds) {
+    const c = get(r.data);
+    c.ggI += r.investimento;
+    c.ggL += r.leads;
+  }
+  return Array.from(map.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([data, v]) => ({
+      data,
+      label: fmtData(data),
+      facebookInv: v.fbI,
+      googleInv: v.ggI,
+      totalInv: v.fbI + v.ggI,
+      facebookLeads: v.fbL,
+      googleLeads: v.ggL,
+      totalLeads: v.fbL + v.ggL,
+    }));
+}
+
+export interface TotaisPlataforma {
+  facebookInv: number;
+  googleInv: number;
+  totalInv: number;
+  facebookLeads: number;
+  googleLeads: number;
+  totalLeads: number;
+}
+
+export function totaisPlataforma(filtered: FilteredData): TotaisPlataforma {
+  const fbI = filtered.facebookAds.reduce((s, r) => s + r.investimento, 0);
+  const ggI = filtered.googleAds.reduce((s, r) => s + r.investimento, 0);
+  const fbL = filtered.facebookAds.reduce((s, r) => s + r.leads, 0);
+  const ggL = filtered.googleAds.reduce((s, r) => s + r.leads, 0);
+  return {
+    facebookInv: fbI,
+    googleInv: ggI,
+    totalInv: fbI + ggI,
+    facebookLeads: fbL,
+    googleLeads: ggL,
+    totalLeads: fbL + ggL,
+  };
+}
+
 // ---------- Agregações ----------
 export interface CampanhaAgg {
   campanha: string;
@@ -246,6 +282,7 @@ export interface CriativoAgg {
   investimento: number;
   leads: number;
   cpl: number | null;
+  previewUrl?: string;
 }
 export function aggCriativos(
   rows: SheetsData["fbCriativos"],
@@ -254,9 +291,12 @@ export function aggCriativos(
   const map = new Map<string, CriativoAgg>();
   for (const r of rows) {
     if (!inRange(r.data, f.dataInicio, f.dataFim)) continue;
-    const cur = map.get(r.criativo) ?? { criativo: r.criativo, investimento: 0, leads: 0, cpl: null };
+    const cur =
+      map.get(r.criativo) ??
+      { criativo: r.criativo, investimento: 0, leads: 0, cpl: null, previewUrl: r.previewUrl };
     cur.investimento += r.investimento;
     cur.leads += r.leads;
+    if (!cur.previewUrl && r.previewUrl) cur.previewUrl = r.previewUrl;
     map.set(r.criativo, cur);
   }
   return Array.from(map.values()).map((c) => ({ ...c, cpl: safeDiv(c.investimento, c.leads) }));

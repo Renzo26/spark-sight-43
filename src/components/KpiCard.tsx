@@ -33,7 +33,8 @@ export function KpiCard({
   const gradId = `g-${accent}-${title.replace(/\s/g, "")}`;
 
   return (
-    <div className="rounded-2xl bg-card border border-border p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.08)] flex flex-col">
+    <div className="card-rise relative overflow-hidden rounded-2xl bg-card border border-border p-5 shadow-[var(--shadow-card)] flex flex-col">
+      <span className="absolute inset-x-0 top-0 h-1" style={{ background: a.fill }} />
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-2">
           {Icon && (
@@ -56,7 +57,7 @@ export function KpiCard({
         )}
       </div>
 
-      <div className="mt-3 text-2xl font-bold tracking-tight text-foreground tabular-nums">
+      <div className="font-display mt-3 text-2xl font-extrabold tracking-tight text-foreground tabular-nums">
         {value}
       </div>
       {hint && <div className="text-[11px] text-muted-foreground mt-0.5">{hint}</div>}

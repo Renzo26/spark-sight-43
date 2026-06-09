@@ -34,6 +34,8 @@ export interface CriativoRow {
   criativo: string;
   investimento: number;
   leads: number;
+  /** URL do preview do criativo (imagem/thumb). Opcional — vem da planilha quando disponível. */
+  previewUrl?: string;
 }
 
 export interface PublicoRow {
@@ -96,14 +98,7 @@ export interface SheetsData {
   ultimaAtualizacao: string; // ISO
 }
 
-export type Plataforma = "Todas" | "Facebook Ads" | "Google Ads";
-export type FasePublicoFiltro = "Todos" | "Quente" | "Frio";
-export type FaseFiltro = "Todas" | FaseFunil;
-
 export interface DashboardFilters {
   dataInicio: ISODate;
   dataFim: ISODate;
-  plataforma: Plataforma;
-  fase: FaseFiltro;
-  publico: FasePublicoFiltro;
 }

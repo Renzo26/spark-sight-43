@@ -1,0 +1,25 @@
+services:
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: wnbf-dashboard
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      # Porta interna do container. No Easypanel aponte o domínio para esta porta.
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

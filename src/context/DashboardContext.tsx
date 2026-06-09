@@ -19,9 +19,6 @@ const TODAY = new Date().toISOString().slice(0, 10);
 const INITIAL: DashboardFilters = {
   dataInicio: TODAY,
   dataFim: TODAY,
-  plataforma: "Todas",
-  fase: "Todas",
-  publico: "Todos",
 };
 
 export function DashboardProvider({ children }: { children: ReactNode }) {

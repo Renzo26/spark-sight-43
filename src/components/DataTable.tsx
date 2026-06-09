@@ -17,10 +17,11 @@ export interface DataTableProps<T> {
   initialSort?: { key: string; dir: "asc" | "desc" };
   emptyMessage?: string;
   highlightBest?: { key: string; better: "lower" | "higher" };
+  onRowClick?: (row: T) => void;
 }
 
 export function DataTable<T>({
-  columns, rows, initialSort, emptyMessage = "Sem dados no período.", highlightBest,
+  columns, rows, initialSort, emptyMessage = "Sem dados no período.", highlightBest, onRowClick,
 }: DataTableProps<T>) {
   const [sort, setSort] = useState(initialSort ?? null);
 
@@ -112,11 +113,13 @@ export function DataTable<T>({
               return (
                 <tr
                   key={idx}
+                  onClick={onRowClick ? () => onRowClick(row) : undefined}
                   className={[
                     "border-t border-border",
                     isBest ? "bg-[color:var(--chart-mint)]/8" : "",
                     isWorst ? "bg-[color:var(--chart-coral)]/8" : "",
                     !isBest && !isWorst ? "hover:bg-secondary/40" : "",
+                    onRowClick ? "cursor-pointer" : "",
                   ].join(" ")}
                 >
                   {columns.map((c) => (

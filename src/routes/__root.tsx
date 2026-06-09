@@ -6,11 +6,12 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Sidebar } from "@/components/Sidebar";
+import { MobileTopBar } from "@/components/MobileTopBar";
 import { FilterBar } from "@/components/FilterBar";
 import { DashboardProvider } from "@/context/DashboardContext";
 
@@ -65,7 +66,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "Dashboard de Tráfego — WNBF Brazil" },
       { name: "description", content: "Painel de métricas de tráfego pago para o lançamento WNBF Brazil." },
     ],
-    links: [{ rel: "stylesheet", href: appCss }],
+    links: [
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=Manrope:wght@400;500;600;700;800&display=swap",
+      },
+      { rel: "stylesheet", href: appCss },
+    ],
   }),
   shellComponent: RootShell,
   component: RootComponent,
@@ -87,15 +96,20 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   return (
     <QueryClientProvider client={queryClient}>
       <DashboardProvider>
         <div className="flex min-h-screen w-full bg-background">
-          <Sidebar />
+          {sidebarOpen && <Sidebar />}
           <div className="flex-1 flex flex-col min-w-0">
-            <FilterBar />
-            <main className="flex-1 p-6">
+            <MobileTopBar />
+            <FilterBar
+              sidebarOpen={sidebarOpen}
+              onToggleSidebar={() => setSidebarOpen((o) => !o)}
+            />
+            <main className="flex-1 p-4 sm:p-6">
               <Outlet />
             </main>
           </div>

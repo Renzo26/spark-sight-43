@@ -12,4 +12,8 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // Deploy fora do Lovable (VPS/Docker): BUILD_TARGET=node gera um servidor Node
+  // standalone em `.output/server/index.mjs` (preset node-server do Nitro).
+  // Dentro do Lovable o preset é forçado para Cloudflare e isto é ignorado.
+  ...(process.env.BUILD_TARGET === "node" ? { nitro: { preset: "node-server" } } : {}),
 });

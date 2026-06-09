@@ -37,6 +37,10 @@
   --color-chart-coral: var(--chart-coral);
   --color-chart-yellow: var(--chart-yellow);
 
+  --color-brand-green: var(--brand-green);
+  --color-brand-blue: var(--brand-blue);
+  --color-brand-yellow: var(--brand-yellow);
+
   --color-success: var(--success);
   --color-danger: var(--danger);
 
@@ -46,66 +50,166 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
 
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Archivo", ui-sans-serif, system-ui, sans-serif;
 }
 
 :root {
   --radius: 1rem;
 
-  /* Off-white app background */
-  --background: oklch(0.974 0.003 247);
-  --foreground: oklch(0.22 0.03 256);   /* #1F2937 */
+  /* Fundo branco-quente para o mesh aparecer */
+  --background: oklch(0.985 0.006 140);
+  --foreground: oklch(0.23 0.03 220); /* slate-azulado escuro */
 
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.22 0.03 256);
+  --card-foreground: oklch(0.23 0.03 220);
 
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.22 0.03 256);
+  --popover-foreground: oklch(0.23 0.03 220);
 
-  --primary: oklch(0.62 0.18 258);       /* #3B82F6 vibe */
+  --primary: oklch(0.585 0.155 152); /* verde bandeira #009C3B */
   --primary-foreground: oklch(0.99 0 0);
 
-  --secondary: oklch(0.96 0.01 250);
-  --secondary-foreground: oklch(0.3 0.03 256);
+  --secondary: oklch(0.96 0.015 150);
+  --secondary-foreground: oklch(0.3 0.03 160);
 
-  --muted: oklch(0.96 0.01 250);
-  --muted-foreground: oklch(0.5 0.02 256);
+  --muted: oklch(0.96 0.012 150);
+  --muted-foreground: oklch(0.5 0.02 200);
 
-  --accent: oklch(0.95 0.03 258);
-  --accent-foreground: oklch(0.3 0.04 256);
+  --accent: oklch(0.95 0.05 150);
+  --accent-foreground: oklch(0.32 0.1 152);
 
-  --destructive: oklch(0.68 0.18 25);
+  --destructive: oklch(0.62 0.2 25);
   --destructive-foreground: oklch(0.99 0 0);
 
-  --border: oklch(0.92 0.01 250);
-  --input: oklch(0.92 0.01 250);
-  --ring: oklch(0.62 0.18 258);
+  --border: oklch(0.91 0.012 160);
+  --input: oklch(0.91 0.012 160);
+  --ring: oklch(0.585 0.155 152);
 
-  /* Chart palette — soft pastels with strong contrast */
-  --chart-blue: oklch(0.66 0.16 258);    /* azul suave */
-  --chart-mint: oklch(0.74 0.13 165);    /* verde menta */
-  --chart-lilac: oklch(0.72 0.13 305);   /* lilás */
-  --chart-coral: oklch(0.74 0.14 35);    /* coral/pêssego */
-  --chart-yellow: oklch(0.85 0.13 90);   /* amarelo suave */
+  /* Paleta de gráficos — bandeira do Brasil */
+  --chart-blue: oklch(0.5 0.17 262); /* azul bandeira */
+  --chart-mint: oklch(0.585 0.155 152); /* verde bandeira */
+  --chart-lilac: oklch(0.66 0.12 178); /* teal (variação) */
+  --chart-coral: oklch(0.68 0.17 42); /* laranja (contraste) */
+  --chart-yellow: oklch(0.8 0.15 92); /* amarelo/ouro bandeira */
 
-  --success: oklch(0.62 0.16 152);
-  --danger: oklch(0.65 0.19 25);
+  --success: oklch(0.6 0.16 152);
+  --danger: oklch(0.62 0.2 25);
+
+  /* Cores de marca (decor/gradientes) */
+  --brand-green: #00913f;
+  --brand-green-deep: #00714d;
+  --brand-blue: #013a86;
+  --brand-yellow: #ffd400;
+  --brand-yellow-soft: #ffe24d;
+
+  /* Gradiente do header (verde → teal → azul) — transição suave */
+  --header-gradient: linear-gradient(
+    105deg,
+    #0a9b48 0%,
+    #0c8d5d 38%,
+    #128488 68%,
+    #1c6bb0 100%
+  );
+
+  --shadow-card: 0 1px 2px rgba(3, 40, 22, 0.05), 0 14px 34px -18px rgba(3, 40, 22, 0.22);
+  --shadow-rise: 0 22px 48px -22px rgba(3, 40, 22, 0.32);
 
   --sidebar: oklch(1 0 0);
-  --sidebar-foreground: oklch(0.3 0.03 256);
-  --sidebar-accent: oklch(0.95 0.03 258);
-  --sidebar-accent-foreground: oklch(0.4 0.13 258);
-  --sidebar-border: oklch(0.93 0.01 250);
+  --sidebar-foreground: oklch(0.3 0.03 200);
+  --sidebar-accent: oklch(0.95 0.05 150);
+  --sidebar-accent-foreground: oklch(0.34 0.12 152);
+  --sidebar-border: oklch(0.92 0.012 160);
 }
 
 @layer base {
-  * { border-color: var(--color-border); }
-  html, body, #root { height: 100%; }
+  * {
+    border-color: var(--color-border);
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
   body {
-    background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
-    font-feature-settings: "cv11", "ss01";
+    font-feature-settings: "ss01", "cv11";
+    /* Mesh atmosférico: blobs verde / azul / amarelo sobre branco-quente */
+    background-color: var(--background);
+    background-image:
+      radial-gradient(820px 520px at 8% -12%, rgba(0, 145, 63, 0.13), transparent 60%),
+      radial-gradient(720px 520px at 102% -4%, rgba(1, 58, 134, 0.1), transparent 55%),
+      radial-gradient(620px 440px at 88% 112%, rgba(255, 212, 0, 0.12), transparent 60%);
+    background-attachment: fixed;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
+
+  /* Header com gradiente da bandeira */
+  .header-brand {
+    background: var(--header-gradient);
+  }
+
+  /* Elevação suave em hover (cards) */
+  .card-rise {
+    transition:
+      transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.22s ease;
+    will-change: transform;
+  }
+  .card-rise:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-rise);
+  }
+
+  /* Entrada na carga */
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .rise {
+    animation: rise-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* Stagger automático da linha de KPIs */
+  .kpi-grid > * {
+    animation: rise-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .kpi-grid > *:nth-child(1) {
+    animation-delay: 0.04s;
+  }
+  .kpi-grid > *:nth-child(2) {
+    animation-delay: 0.1s;
+  }
+  .kpi-grid > *:nth-child(3) {
+    animation-delay: 0.16s;
+  }
+  .kpi-grid > *:nth-child(4) {
+    animation-delay: 0.22s;
+  }
+  .kpi-grid > *:nth-child(5) {
+    animation-delay: 0.28s;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rise,
+    .kpi-grid > *,
+    .card-rise {
+      animation: none !important;
+      transition: none !important;
+    }
   }
 }
