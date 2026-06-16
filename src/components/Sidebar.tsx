@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Table2, Radio } from "lucide-react";
+import { LayoutDashboard, TrendingUp, LineChart, Workflow } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 
 interface Item {
@@ -13,8 +13,9 @@ export const HEADER_BG = "var(--header-gradient)"; // gradiente verde→azul (ba
 
 export const NAV_ITEMS: Item[] = [
   { to: "/", label: "Visão Geral", icon: LayoutDashboard },
-  { to: "/detalhamento", label: "Detalhamento", icon: Table2 },
-  { to: "/midia", label: "Mídia", icon: Radio },
+  { to: "/trafego", label: "Tráfego", icon: TrendingUp },
+  { to: "/analytics", label: "Analytics", icon: LineChart },
+  { to: "/operacao", label: "Operação", icon: Workflow },
 ];
 
 export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {

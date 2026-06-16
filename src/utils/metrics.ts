@@ -8,6 +8,29 @@ import type {
   SomatorioRow,
 } from "@/types/sheets";
 
+// ---------- Descrições das métricas (sigla → nome completo) ----------
+export const METRIC_DESC: Record<string, string> = {
+  CPC: "Custo por Clique",
+  CPM: "Custo por Mil Impressões",
+  CPL: "Custo por Lead",
+  CPA: "Custo por Aquisição",
+  CTR: "Taxa de Cliques",
+  ROAS: "Retorno sobre o Investimento",
+  Frequência: "Média de vezes que cada pessoa viu o anúncio",
+  "Connect Rate": "Sessões geradas a cada clique",
+  "Custo / Sessão": "Custo por Sessão",
+  Impressões: "Total de exibições do anúncio",
+  Alcance: "Pessoas únicas atingidas",
+  Cliques: "Cliques no anúncio",
+  Leads: "Cadastros gerados",
+  Vendas: "Compras concluídas",
+  Faturamento: "Receita gerada",
+};
+
+/** Retorna `SIGLA (Descrição)` quando há descrição cadastrada; senão só a sigla. */
+export const metricLabel = (sigla: string): string =>
+  METRIC_DESC[sigla] ? `${sigla} (${METRIC_DESC[sigla]})` : sigla;
+
 // ---------- Formatação ----------
 export const fmtBRL = (v: number | null | undefined): string => {
   if (v == null || !isFinite(v)) return "—";
@@ -41,8 +64,7 @@ export const fmtData = (iso: ISODate): string => {
 // ---------- Helpers ----------
 const inRange = (d: ISODate, ini: ISODate, fim: ISODate) => d >= ini && d <= fim;
 
-const safeDiv = (n: number, d: number): number | null =>
-  d > 0 && isFinite(n / d) ? n / d : null;
+const safeDiv = (n: number, d: number): number | null => (d > 0 && isFinite(n / d) ? n / d : null);
 
 // ---------- Dados filtrados ----------
 export interface FilteredData {
@@ -60,11 +82,20 @@ export function applyFilters(data: SheetsData, f: DashboardFilters): FilteredDat
   // Somatório recalculado a partir de Facebook + Google (sem filtro de plataforma).
   const byDate = new Map<ISODate, SomatorioRow>();
   const upsert = (r: {
-    data: ISODate; investimento: number; impressoes: number;
-    alcance?: number; cliques: number; leads: number;
+    data: ISODate;
+    investimento: number;
+    impressoes: number;
+    alcance?: number;
+    cliques: number;
+    leads: number;
   }) => {
     const cur = byDate.get(r.data) ?? {
-      data: r.data, investimento: 0, impressoes: 0, alcance: 0, cliques: 0, leads: 0,
+      data: r.data,
+      investimento: 0,
+      impressoes: 0,
+      alcance: 0,
+      cliques: 0,
+      leads: 0,
     };
     cur.investimento += r.investimento;
     cur.impressoes += r.impressoes;
@@ -98,22 +129,26 @@ export interface KpiTotais {
   usuarios: number;
   custoPorSessao: number | null;
   connectRate: number | null;
-  // E-commerce (placeholders)
-  visualizacoesPagina: number | null;
-  checkout: number | null;
+  // E-commerce / conversão
+  addToCart: number;
+  checkout: number;
+  compras: number; // vendas
+  thankYouPage: number;
   custoPorCheckout: number | null;
-  compras: number | null;
   cpa: number | null;
-  faturamento: number | null;
+  faturamento: number;
+  ticketMedio: number | null;
   roas: number | null;
 }
 
 export function computeKpis(
   filtered: FilteredData,
   ga4: SheetsData["ga4"],
+  conversoes: SheetsData["conversoes"],
   f: DashboardFilters,
 ): KpiTotais {
   const ga = ga4.filter((r) => inRange(r.data, f.dataInicio, f.dataFim));
+  const conv = conversoes.filter((r) => inRange(r.data, f.dataInicio, f.dataFim));
 
   const investimento = filtered.somatorio.reduce((s, r) => s + r.investimento, 0);
   const impressoes = filtered.somatorio.reduce((s, r) => s + r.impressoes, 0);
@@ -122,6 +157,12 @@ export function computeKpis(
   const leads = filtered.somatorio.reduce((s, r) => s + r.leads, 0);
   const sessoes = ga.reduce((s, r) => s + r.sessoes, 0);
   const usuarios = ga.reduce((s, r) => s + r.usuarios, 0);
+
+  const addToCart = conv.reduce((s, r) => s + r.addToCart, 0);
+  const checkout = conv.reduce((s, r) => s + r.initiateCheckout, 0);
+  const compras = conv.reduce((s, r) => s + r.purchase, 0);
+  const thankYouPage = conv.reduce((s, r) => s + r.thankYouPage, 0);
+  const faturamento = conv.reduce((s, r) => s + r.faturamento, 0);
 
   const cpm = safeDiv(investimento, impressoes);
   return {
@@ -139,13 +180,15 @@ export function computeKpis(
     usuarios,
     custoPorSessao: safeDiv(investimento, sessoes),
     connectRate: safeDiv(sessoes, cliques) != null ? (sessoes / cliques) * 100 : null,
-    visualizacoesPagina: null,
-    checkout: null,
-    custoPorCheckout: null,
-    compras: null,
-    cpa: null,
-    faturamento: null,
-    roas: null,
+    addToCart,
+    checkout,
+    compras,
+    thankYouPage,
+    custoPorCheckout: safeDiv(investimento, checkout),
+    cpa: safeDiv(investimento, compras),
+    faturamento,
+    ticketMedio: safeDiv(faturamento, compras),
+    roas: safeDiv(faturamento, investimento),
   };
 }
 
@@ -240,87 +283,160 @@ export function totaisPlataforma(filtered: FilteredData): TotaisPlataforma {
 }
 
 // ---------- Agregações ----------
+/** Métricas derivadas comuns a todas as dimensões de detalhamento. */
+function derivadas(c: {
+  investimento: number;
+  impressoes: number;
+  alcance: number;
+  cliques: number;
+  leads: number;
+}) {
+  return {
+    cpl: safeDiv(c.investimento, c.leads),
+    cpc: safeDiv(c.investimento, c.cliques),
+    cpm:
+      safeDiv(c.investimento, c.impressoes) != null ? (c.investimento / c.impressoes) * 1000 : null,
+    ctr: safeDiv(c.cliques, c.impressoes) != null ? (c.cliques / c.impressoes) * 100 : null,
+    frequencia: safeDiv(c.impressoes, c.alcance),
+  };
+}
+
 export interface CampanhaAgg {
   campanha: string;
   plataforma: "Facebook Ads" | "Google Ads";
   investimento: number;
   impressoes: number;
+  alcance: number;
   cliques: number;
   leads: number;
   cpl: number | null;
+  cpc: number | null;
+  cpm: number | null;
   ctr: number | null;
+  frequencia: number | null;
 }
 
 export function aggCampanhas(filtered: FilteredData): CampanhaAgg[] {
   const map = new Map<string, CampanhaAgg>();
-  const upsert = (key: string, plat: CampanhaAgg["plataforma"], row: {
-    investimento: number; impressoes: number; cliques: number; leads: number;
-  }) => {
+  const upsert = (
+    key: string,
+    plat: CampanhaAgg["plataforma"],
+    row: {
+      investimento: number;
+      impressoes: number;
+      alcance: number;
+      cliques: number;
+      leads: number;
+    },
+  ) => {
     const k = `${plat}::${key}`;
     const cur = map.get(k) ?? {
-      campanha: key, plataforma: plat,
-      investimento: 0, impressoes: 0, cliques: 0, leads: 0,
-      cpl: null, ctr: null,
+      campanha: key,
+      plataforma: plat,
+      investimento: 0,
+      impressoes: 0,
+      alcance: 0,
+      cliques: 0,
+      leads: 0,
+      cpl: null,
+      cpc: null,
+      cpm: null,
+      ctr: null,
+      frequencia: null,
     };
     cur.investimento += row.investimento;
     cur.impressoes += row.impressoes;
+    cur.alcance += row.alcance;
     cur.cliques += row.cliques;
     cur.leads += row.leads;
     map.set(k, cur);
   };
   filtered.facebookAds.forEach((r) => upsert(r.campanha, "Facebook Ads", r));
   filtered.googleAds.forEach((r) => upsert(r.campanha, "Google Ads", r));
-  return Array.from(map.values()).map((c) => ({
-    ...c,
-    cpl: safeDiv(c.investimento, c.leads),
-    ctr: safeDiv(c.cliques, c.impressoes) != null ? (c.cliques / c.impressoes) * 100 : null,
-  }));
+  return Array.from(map.values()).map((c) => ({ ...c, ...derivadas(c) }));
 }
 
 export interface CriativoAgg {
   criativo: string;
   investimento: number;
+  impressoes: number;
+  alcance: number;
+  cliques: number;
   leads: number;
   cpl: number | null;
+  cpc: number | null;
+  cpm: number | null;
+  ctr: number | null;
+  frequencia: number | null;
   previewUrl?: string;
 }
-export function aggCriativos(
-  rows: SheetsData["fbCriativos"],
-  f: DashboardFilters,
-): CriativoAgg[] {
+export function aggCriativos(rows: SheetsData["fbCriativos"], f: DashboardFilters): CriativoAgg[] {
   const map = new Map<string, CriativoAgg>();
   for (const r of rows) {
     if (!inRange(r.data, f.dataInicio, f.dataFim)) continue;
-    const cur =
-      map.get(r.criativo) ??
-      { criativo: r.criativo, investimento: 0, leads: 0, cpl: null, previewUrl: r.previewUrl };
+    const cur = map.get(r.criativo) ?? {
+      criativo: r.criativo,
+      investimento: 0,
+      impressoes: 0,
+      alcance: 0,
+      cliques: 0,
+      leads: 0,
+      cpl: null,
+      cpc: null,
+      cpm: null,
+      ctr: null,
+      frequencia: null,
+      previewUrl: r.previewUrl,
+    };
     cur.investimento += r.investimento;
+    cur.impressoes += r.impressoes;
+    cur.alcance += r.alcance;
+    cur.cliques += r.cliques;
     cur.leads += r.leads;
     if (!cur.previewUrl && r.previewUrl) cur.previewUrl = r.previewUrl;
     map.set(r.criativo, cur);
   }
-  return Array.from(map.values()).map((c) => ({ ...c, cpl: safeDiv(c.investimento, c.leads) }));
+  return Array.from(map.values()).map((c) => ({ ...c, ...derivadas(c) }));
 }
 
 export interface PublicoAgg {
   publico: string;
   investimento: number;
+  impressoes: number;
+  alcance: number;
+  cliques: number;
   leads: number;
   cpl: number | null;
+  cpc: number | null;
+  cpm: number | null;
+  ctr: number | null;
+  frequencia: number | null;
 }
-export function aggPublicos(
-  rows: SheetsData["fbPublicos"],
-  f: DashboardFilters,
-): PublicoAgg[] {
+export function aggPublicos(rows: SheetsData["fbPublicos"], f: DashboardFilters): PublicoAgg[] {
   const map = new Map<string, PublicoAgg>();
   for (const r of rows) {
     if (!inRange(r.data, f.dataInicio, f.dataFim)) continue;
-    const cur = map.get(r.publico) ?? { publico: r.publico, investimento: 0, leads: 0, cpl: null };
+    const cur = map.get(r.publico) ?? {
+      publico: r.publico,
+      investimento: 0,
+      impressoes: 0,
+      alcance: 0,
+      cliques: 0,
+      leads: 0,
+      cpl: null,
+      cpc: null,
+      cpm: null,
+      ctr: null,
+      frequencia: null,
+    };
     cur.investimento += r.investimento;
+    cur.impressoes += r.impressoes;
+    cur.alcance += r.alcance;
+    cur.cliques += r.cliques;
     cur.leads += r.leads;
     map.set(r.publico, cur);
   }
-  return Array.from(map.values()).map((c) => ({ ...c, cpl: safeDiv(c.investimento, c.leads) }));
+  return Array.from(map.values()).map((c) => ({ ...c, ...derivadas(c) }));
 }
 
 export interface FaseAgg {
@@ -337,13 +453,12 @@ export function aggFases(filtered: FilteredData): FaseAgg[] {
     map.set(r.fase, cur);
   }
   const ORDEM = ["Distribuição", "Captação", "Aquecimento", "Lembrete", "Evento", "Carrinho"];
-  return Array.from(map.values()).sort(
-    (a, b) => ORDEM.indexOf(a.fase) - ORDEM.indexOf(b.fase),
-  );
+  return Array.from(map.values()).sort((a, b) => ORDEM.indexOf(a.fase) - ORDEM.indexOf(b.fase));
 }
 
 export function aggPlataformaInvestimento(filtered: FilteredData): {
-  plataforma: string; investimento: number;
+  plataforma: string;
+  investimento: number;
 }[] {
   const fb = filtered.facebookAds.reduce((s, r) => s + r.investimento, 0);
   const gg = filtered.googleAds.reduce((s, r) => s + r.investimento, 0);
@@ -372,6 +487,104 @@ export function aggQF(data: SheetsData, f: DashboardFilters): QFAgg[] {
     { tipo: "Quente", investimento: q.inv, leads: q.ld, cpl: safeDiv(q.inv, q.ld) },
     { tipo: "Frio", investimento: fr.inv, leads: fr.ld, cpl: safeDiv(fr.inv, fr.ld) },
   ];
+}
+
+// ---------- Funil de ações de conversão ----------
+export interface ConversaoTotais {
+  addToCart: number;
+  initiateCheckout: number;
+  purchase: number;
+  thankYouPage: number;
+  faturamento: number;
+}
+export function aggConversoes(
+  rows: SheetsData["conversoes"],
+  f: DashboardFilters,
+): ConversaoTotais {
+  const filt = rows.filter((r) => inRange(r.data, f.dataInicio, f.dataFim));
+  return {
+    addToCart: filt.reduce((s, r) => s + r.addToCart, 0),
+    initiateCheckout: filt.reduce((s, r) => s + r.initiateCheckout, 0),
+    purchase: filt.reduce((s, r) => s + r.purchase, 0),
+    thankYouPage: filt.reduce((s, r) => s + r.thankYouPage, 0),
+    faturamento: filt.reduce((s, r) => s + r.faturamento, 0),
+  };
+}
+
+export interface SerieConversaoDia {
+  data: ISODate;
+  label: string;
+  addToCart: number;
+  initiateCheckout: number;
+  purchase: number;
+  thankYouPage: number;
+}
+export function serieConversao(
+  rows: SheetsData["conversoes"],
+  f: DashboardFilters,
+): SerieConversaoDia[] {
+  return rows
+    .filter((r) => inRange(r.data, f.dataInicio, f.dataFim))
+    .sort((a, b) => a.data.localeCompare(b.data))
+    .map((r) => ({
+      data: r.data,
+      label: fmtData(r.data),
+      addToCart: r.addToCart,
+      initiateCheckout: r.initiateCheckout,
+      purchase: r.purchase,
+      thankYouPage: r.thankYouPage,
+    }));
+}
+
+// ---------- Connect Rate (Home Page × Landing pages posteriores) ----------
+export interface ConnectRateTotais {
+  cliques: number;
+  homeSessoes: number;
+  landingSessoes: number;
+  homeRate: number | null; // % cliques que chegaram à Home
+  landingRate: number | null; // % da Home que avançou para landing posteriores
+}
+export function aggConnectRate(
+  rows: SheetsData["connectRate"],
+  f: DashboardFilters,
+): ConnectRateTotais {
+  const filt = rows.filter((r) => inRange(r.data, f.dataInicio, f.dataFim));
+  const cliques = filt.reduce((s, r) => s + r.cliques, 0);
+  const homeSessoes = filt.reduce((s, r) => s + r.homeSessoes, 0);
+  const landingSessoes = filt.reduce((s, r) => s + r.landingSessoes, 0);
+  return {
+    cliques,
+    homeSessoes,
+    landingSessoes,
+    homeRate: safeDiv(homeSessoes, cliques) != null ? (homeSessoes / cliques) * 100 : null,
+    landingRate:
+      safeDiv(landingSessoes, homeSessoes) != null ? (landingSessoes / homeSessoes) * 100 : null,
+  };
+}
+
+export interface SerieConnectRateDia {
+  data: ISODate;
+  label: string;
+  homeRate: number | null;
+  landingRate: number | null;
+}
+export function serieConnectRate(
+  rows: SheetsData["connectRate"],
+  f: DashboardFilters,
+): SerieConnectRateDia[] {
+  return rows
+    .filter((r) => inRange(r.data, f.dataInicio, f.dataFim))
+    .sort((a, b) => a.data.localeCompare(b.data))
+    .map((r) => ({
+      data: r.data,
+      label: fmtData(r.data),
+      homeRate:
+        safeDiv(r.homeSessoes, r.cliques) != null ? (r.homeSessoes / r.cliques) * 100 : null,
+      landingRate:
+        safeDiv(r.landingSessoes, r.homeSessoes) != null
+          ? (r.landingSessoes / r.homeSessoes) * 100
+          : null,
+    }));
 }
 
 // ---------- Datas iniciais ----------

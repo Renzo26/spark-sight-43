@@ -1,4 +1,6 @@
 import type {
+  ConnectRateRow,
+  ConversaoRow,
   CriativoRow,
   FaseFunil,
   FaseRow,
@@ -6,6 +8,7 @@ import type {
   GA4Row,
   GoogleAdsRow,
   GrupoWhatsRow,
+  MetaRow,
   PublicoQFRow,
   PublicoRow,
   SheetsData,
@@ -117,6 +120,7 @@ DAYS.forEach((data, i) => {
     const base = (somatorio[i].investimento * 0.3) / gCampanhas.length;
     const inv = Math.round(base * (0.7 + r() * 0.8));
     const imp = Math.round(inv * (80 + r() * 60));
+    const alc = Math.round(imp * (0.6 + r() * 0.15));
     const cli = Math.round(imp * (0.02 + r() * 0.02));
     const ld = Math.round(cli * (0.2 + r() * 0.1));
     googleAds.push({
@@ -124,6 +128,7 @@ DAYS.forEach((data, i) => {
       campanha: c,
       investimento: inv,
       impressoes: imp,
+      alcance: alc,
       cliques: cli,
       leads: ld,
     });
@@ -144,8 +149,19 @@ const fbCriativos: CriativoRow[] = [];
 DAYS.forEach((data) => {
   criativos.forEach((cr, idx) => {
     const inv = Math.round(60 + r() * 220 + (idx === 0 ? 120 : 0));
+    const imp = Math.round(inv * (110 + r() * 50));
+    const alc = Math.round(imp * (0.55 + r() * 0.15));
+    const cli = Math.round(imp * (0.011 + r() * 0.012));
     const ld = Math.round(inv * (0.04 + r() * 0.05) + (idx === 0 ? 8 : 0));
-    fbCriativos.push({ data, criativo: cr, investimento: inv, leads: ld });
+    fbCriativos.push({
+      data,
+      criativo: cr,
+      investimento: inv,
+      impressoes: imp,
+      alcance: alc,
+      cliques: cli,
+      leads: ld,
+    });
   });
 });
 
@@ -162,8 +178,19 @@ const fbPublicos: PublicoRow[] = [];
 DAYS.forEach((data) => {
   publicos.forEach((p) => {
     const inv = Math.round(80 + r() * 260);
+    const imp = Math.round(inv * (110 + r() * 50));
+    const alc = Math.round(imp * (0.55 + r() * 0.15));
+    const cli = Math.round(imp * (0.011 + r() * 0.012));
     const ld = Math.round(inv * (0.05 + r() * 0.06));
-    fbPublicos.push({ data, publico: p, investimento: inv, leads: ld });
+    fbPublicos.push({
+      data,
+      publico: p,
+      investimento: inv,
+      impressoes: imp,
+      alcance: alc,
+      cliques: cli,
+      leads: ld,
+    });
   });
 });
 
@@ -206,9 +233,16 @@ DAYS.forEach((data, i) => {
     const imp = Math.round(inv * (110 + r() * 50));
     const alc = Math.round(imp * (0.55 + r() * 0.15));
     const cli = Math.round(imp * (0.013 + r() * 0.01));
-    const leads =
-      fase === "Captação" ? Math.round(cli * (0.2 + r() * 0.1)) : undefined;
-    fases.push({ data, fase, investimento: inv, impressoes: imp, alcance: alc, cliques: cli, leads });
+    const leads = fase === "Captação" ? Math.round(cli * (0.2 + r() * 0.1)) : undefined;
+    fases.push({
+      data,
+      fase,
+      investimento: inv,
+      impressoes: imp,
+      alcance: alc,
+      cliques: cli,
+      leads,
+    });
   });
 });
 
@@ -232,6 +266,63 @@ const gruposWhats: GrupoWhatsRow[] = [
   { grupo: "Grupo Recém-inscritos", leads: 96 },
 ];
 
+// ---------- Funil de ações de conversão (não nativo) ----------
+const TICKET_MEDIO = 497; // ticket médio do produto (BRL)
+const conversoes: ConversaoRow[] = DAYS.map((data, i) => {
+  const leads = somatorio[i].leads;
+  // Funil decrescente: parte dos leads adiciona ao carrinho, e segue afunilando.
+  const addToCart = Math.round(leads * (0.32 + r() * 0.1));
+  const initiateCheckout = Math.round(addToCart * (0.6 + r() * 0.12));
+  const purchase = Math.round(initiateCheckout * (0.45 + r() * 0.15));
+  const thankYouPage = Math.round(purchase * (0.9 + r() * 0.1));
+  const faturamento = Math.round(purchase * TICKET_MEDIO * (0.92 + r() * 0.18));
+  return { data, addToCart, initiateCheckout, purchase, thankYouPage, faturamento };
+});
+
+// ---------- Connect Rate (Home Page × Landing pages posteriores) ----------
+const connectRate: ConnectRateRow[] = DAYS.map((data, i) => {
+  const cliques = somatorio[i].cliques;
+  const homeSessoes = Math.round(cliques * (0.7 + r() * 0.15)); // % que chega à Home
+  const landingSessoes = Math.round(homeSessoes * (0.55 + r() * 0.2)); // % que avança
+  return { data, cliques, homeSessoes, landingSessoes };
+});
+
+// ---------- Metas (realizado × Ideal × Máximo) ----------
+const totLeads = somatorio.reduce((s, x) => s + x.leads, 0);
+const totInv = somatorio.reduce((s, x) => s + x.investimento, 0);
+const totVendas = conversoes.reduce((s, x) => s + x.purchase, 0);
+const totFat = conversoes.reduce((s, x) => s + x.faturamento, 0);
+const metas: MetaRow[] = [
+  {
+    metrica: "Leads",
+    realizado: totLeads,
+    ideal: Math.round(totLeads * 1.15),
+    maximo: Math.round(totLeads * 1.4),
+    formato: "int",
+  },
+  {
+    metrica: "Vendas",
+    realizado: totVendas,
+    ideal: Math.round(totVendas * 1.2),
+    maximo: Math.round(totVendas * 1.5),
+    formato: "int",
+  },
+  {
+    metrica: "Faturamento",
+    realizado: totFat,
+    ideal: Math.round(totFat * 1.2),
+    maximo: Math.round(totFat * 1.5),
+    formato: "brl",
+  },
+  {
+    metrica: "Investimento",
+    realizado: totInv,
+    ideal: Math.round(totInv * 1.1),
+    maximo: Math.round(totInv * 1.25),
+    formato: "brl",
+  },
+];
+
 const MOCK: SheetsData = {
   somatorio,
   facebookAds,
@@ -243,6 +334,9 @@ const MOCK: SheetsData = {
   fases,
   ga4,
   gruposWhats,
+  conversoes,
+  connectRate,
+  metas,
   ultimaAtualizacao: new Date().toISOString(),
 };
 

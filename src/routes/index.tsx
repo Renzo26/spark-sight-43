@@ -13,12 +13,21 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { DollarSign, Eye, MousePointerClick, Users, UserPlus } from "lucide-react";
+import {
+  DollarSign,
+  Eye,
+  MousePointerClick,
+  Receipt,
+  ShoppingCart,
+  Users,
+  UserPlus,
+} from "lucide-react";
 
 import { useDashboard } from "@/context/DashboardContext";
 import { KpiCard } from "@/components/KpiCard";
 import { ChartCard } from "@/components/ChartCard";
 import { FunnelChart } from "@/components/FunnelChart";
+import { MetasChart } from "@/components/MetasChart";
 import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import {
   aggCriativos,
@@ -28,9 +37,8 @@ import {
   fmtInt,
   fmtNum,
   fmtPct,
-  serieInvestimentoPlataforma,
+  metricLabel,
   serieTemporal,
-  totaisPlataforma,
 } from "@/utils/metrics";
 import type { CriativoAgg } from "@/utils/metrics";
 
@@ -63,8 +71,8 @@ function tooltipStyle() {
 
 function SkeletonGrid() {
   return (
-    <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
-      {Array.from({ length: 5 }).map((_, i) => (
+    <div className="grid gap-4 grid-cols-2 md:grid-cols-4 xl:grid-cols-7">
+      {Array.from({ length: 7 }).map((_, i) => (
         <div key={i} className="h-32 rounded-2xl bg-card border border-border animate-pulse" />
       ))}
     </div>
@@ -76,15 +84,10 @@ function VisaoGeral() {
 
   const filtered = useMemo(() => (data ? applyFilters(data, filters) : null), [data, filters]);
   const kpis = useMemo(
-    () => (data && filtered ? computeKpis(filtered, data.ga4, filters) : null),
+    () => (data && filtered ? computeKpis(filtered, data.ga4, data.conversoes, filters) : null),
     [data, filtered, filters],
   );
   const serie = useMemo(() => (filtered ? serieTemporal(filtered) : []), [filtered]);
-  const seriePlat = useMemo(
-    () => (filtered ? serieInvestimentoPlataforma(filtered) : []),
-    [filtered],
-  );
-  const totaisPlat = useMemo(() => (filtered ? totaisPlataforma(filtered) : null), [filtered]);
   const criativos = useMemo(
     () =>
       data
@@ -103,7 +106,7 @@ function VisaoGeral() {
     );
   }
 
-  if (isLoading || !kpis || !filtered || !totaisPlat) {
+  if (isLoading || !kpis || !filtered || !data) {
     return (
       <div className="space-y-4">
         <SkeletonGrid />
@@ -148,20 +151,36 @@ function VisaoGeral() {
   return (
     <div className="space-y-6">
       {/* Linha de KPIs */}
-      <div className="kpi-grid grid gap-4 grid-cols-2 lg:grid-cols-5">
+      <div className="kpi-grid grid gap-4 grid-cols-2 md:grid-cols-4 xl:grid-cols-7">
+        <KpiCard
+          title="Faturamento"
+          value={fmtBRL(kpis.faturamento)}
+          hint={`ROAS ${fmtNum(kpis.roas)}x`}
+          icon={Receipt}
+          accent="mint"
+          delta={9.2}
+        />
+        <KpiCard
+          title="Vendas"
+          value={fmtInt(kpis.compras)}
+          hint={`Ticket médio ${fmtBRL(kpis.ticketMedio)}`}
+          icon={ShoppingCart}
+          accent="lilac"
+          delta={7.5}
+        />
         <KpiCard
           title="Investimento"
           value={fmtBRL(kpis.investimento)}
           hint={`Período: ${serie.length} dia(s)`}
           icon={DollarSign}
-          accent="mint"
+          accent="blue"
           series={sparkInv}
           delta={4.8}
         />
         <KpiCard
           title="Leads"
           value={fmtInt(kpis.leads)}
-          hint={`CPL ${fmtBRL(kpis.cpl)}`}
+          hint={`CPL (Custo por Lead) ${fmtBRL(kpis.cpl)}`}
           icon={UserPlus}
           accent="lilac"
           series={sparkLeads}
@@ -170,7 +189,7 @@ function VisaoGeral() {
         <KpiCard
           title="Cliques"
           value={fmtInt(kpis.cliques)}
-          hint={`CTR ${fmtPct(kpis.ctr)}`}
+          hint={`CTR (Taxa de Cliques) ${fmtPct(kpis.ctr)}`}
           icon={MousePointerClick}
           accent="blue"
           series={sparkCli}
@@ -189,7 +208,7 @@ function VisaoGeral() {
         <KpiCard
           title="Impressões"
           value={fmtInt(kpis.impressoes)}
-          hint={`CPM ${fmtBRL(kpis.cpm)}`}
+          hint={`CPM (Custo por Mil) ${fmtBRL(kpis.cpm)}`}
           icon={Eye}
           accent="yellow"
           series={sparkImp}
@@ -206,20 +225,32 @@ function VisaoGeral() {
           </ChartCard>
 
           <div className="grid grid-cols-2 gap-3">
-            <MiniStat label="CTR" value={fmtPct(kpis.ctr)} color="lilac" />
-            <MiniStat label="Frequência" value={fmtNum(kpis.frequencia)} color="coral" />
-            <MiniStat label="Connect Rate" value={fmtPct(kpis.connectRate)} color="mint" />
-            <MiniStat label="CPL" value={fmtBRL(kpis.cpl)} color="blue" />
+            <MiniStat label={metricLabel("CTR")} value={fmtPct(kpis.ctr)} color="lilac" />
+            <MiniStat
+              label={metricLabel("Frequência")}
+              value={fmtNum(kpis.frequencia)}
+              color="coral"
+            />
+            <MiniStat
+              label={metricLabel("Connect Rate")}
+              value={fmtPct(kpis.connectRate)}
+              color="mint"
+            />
+            <MiniStat label={metricLabel("CPL")} value={fmtBRL(kpis.cpl)} color="blue" />
           </div>
         </div>
 
         {/* Centro — Custos + Série principal */}
         <div className="lg:col-span-5 space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <MiniStat label="CPL" value={fmtBRL(kpis.cpl)} color="blue" />
-            <MiniStat label="CPC" value={fmtBRL(kpis.cpc)} color="lilac" />
-            <MiniStat label="CPM" value={fmtBRL(kpis.cpm)} color="coral" />
-            <MiniStat label="Custo / Sessão" value={fmtBRL(kpis.custoPorSessao)} color="mint" />
+            <MiniStat label={metricLabel("CPL")} value={fmtBRL(kpis.cpl)} color="blue" />
+            <MiniStat label={metricLabel("CPC")} value={fmtBRL(kpis.cpc)} color="lilac" />
+            <MiniStat label={metricLabel("CPM")} value={fmtBRL(kpis.cpm)} color="coral" />
+            <MiniStat
+              label={metricLabel("Custo / Sessão")}
+              value={fmtBRL(kpis.custoPorSessao)}
+              color="mint"
+            />
           </div>
 
           <ChartCard title="Investimento × Leads por dia" subtitle="Série temporal com eixo duplo">
@@ -324,69 +355,12 @@ function VisaoGeral() {
         </div>
       </div>
 
-      {/* Comparativo + somatório das plataformas */}
+      {/* Metas do lançamento — realizado × Ideal × Máximo */}
       <ChartCard
-        title="Comparativo de Investimento por Plataforma"
-        subtitle="Facebook Ads × Google Ads (área empilhada = total por dia)"
-        action={
-          <div className="flex flex-wrap gap-2">
-            <PlatChip label="Facebook" value={fmtBRL(totaisPlat.facebookInv)} color="mint" />
-            <PlatChip label="Google" value={fmtBRL(totaisPlat.googleInv)} color="blue" />
-            <PlatChip label="Total" value={fmtBRL(totaisPlat.totalInv)} color="lilac" emphasis />
-          </div>
-        }
+        title="Metas do Lançamento"
+        subtitle="Realizado sobre as faixas de referência Ideal e Máximo"
       >
-        <div className="h-72">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={seriePlat} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="fb" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--chart-mint)" stopOpacity={0.5} />
-                  <stop offset="100%" stopColor="var(--chart-mint)" stopOpacity={0.05} />
-                </linearGradient>
-                <linearGradient id="gg" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--chart-blue)" stopOpacity={0.5} />
-                  <stop offset="100%" stopColor="var(--chart-blue)" stopOpacity={0.05} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-              <XAxis
-                dataKey="label"
-                tickLine={false}
-                axisLine={false}
-                fontSize={11}
-                stroke="var(--muted-foreground)"
-              />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                fontSize={11}
-                stroke="var(--muted-foreground)"
-                tickFormatter={(v: number) => `R$${(v / 1000).toFixed(0)}k`}
-              />
-              <Tooltip {...t} formatter={(value: number, name: string) => [fmtBRL(value), name]} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Area
-                type="monotone"
-                dataKey="facebookInv"
-                name="Facebook Ads"
-                stackId="inv"
-                stroke="var(--chart-mint)"
-                strokeWidth={2}
-                fill="url(#fb)"
-              />
-              <Area
-                type="monotone"
-                dataKey="googleInv"
-                name="Google Ads"
-                stackId="inv"
-                stroke="var(--chart-blue)"
-                strokeWidth={2}
-                fill="url(#gg)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
+        <MetasChart metas={data.metas} />
       </ChartCard>
     </div>
   );
@@ -411,39 +385,10 @@ function MiniStat({
   return (
     <div className="rounded-xl bg-card border border-border p-3">
       <div className="flex items-center gap-2">
-        <span className="w-1.5 h-1.5 rounded-full" style={{ background: map[color] }} />
-        <span className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-          {label}
-        </span>
+        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: map[color] }} />
+        <span className="text-[10px] text-muted-foreground font-medium leading-tight">{label}</span>
       </div>
       <div className="mt-1 text-lg font-bold text-foreground tabular-nums">{value}</div>
-    </div>
-  );
-}
-
-function PlatChip({
-  label,
-  value,
-  color,
-  emphasis,
-}: {
-  label: string;
-  value: string;
-  color: "blue" | "mint" | "lilac";
-  emphasis?: boolean;
-}) {
-  const map = { blue: "var(--chart-blue)", mint: "var(--chart-mint)", lilac: "var(--chart-lilac)" };
-  return (
-    <div
-      className={[
-        "flex items-center gap-1.5 rounded-lg border px-2.5 py-1",
-        emphasis ? "border-transparent" : "border-border bg-card",
-      ].join(" ")}
-      style={emphasis ? { background: `${map[color]}1f` } : undefined}
-    >
-      <span className="w-2 h-2 rounded-sm" style={{ background: map[color] }} />
-      <span className="text-[11px] text-muted-foreground">{label}</span>
-      <span className="text-xs font-bold text-foreground tabular-nums">{value}</span>
     </div>
   );
 }

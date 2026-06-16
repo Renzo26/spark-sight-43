@@ -23,21 +23,79 @@ import {
   applyFilters,
   fmtBRL,
   fmtInt,
+  fmtNum,
   fmtPct,
 } from "@/utils/metrics";
 import type { CampanhaAgg, CriativoAgg, PublicoAgg, QFAgg } from "@/utils/metrics";
 
-export const Route = createFileRoute("/detalhamento")({
+export const Route = createFileRoute("/trafego")({
   head: () => ({
     meta: [
-      { title: "Detalhamento — Dashboard WNBF Brazil" },
+      { title: "Tráfego — Dashboard WNBF Brazil" },
       { name: "description", content: "Tabelas de campanhas, criativos e públicos com ranking." },
     ],
   }),
-  component: Detalhamento,
+  component: Trafego,
 });
 
-function Detalhamento() {
+/**
+ * Colunas de métricas padronizadas para todas as dimensões de detalhamento:
+ * Investimento, Impressões, Cliques, CTR, CPM, Frequência, Leads, CPL.
+ */
+function colsMetricasPadrao<
+  T extends {
+    investimento: number;
+    impressoes: number;
+    cliques: number;
+    ctr: number | null;
+    cpm: number | null;
+    frequencia: number | null;
+    leads: number;
+    cpl: number | null;
+  },
+>(): DataTableColumn<T>[] {
+  return [
+    {
+      key: "investimento",
+      label: "Investimento",
+      align: "right",
+      render: (r) => fmtBRL(r.investimento),
+    },
+    { key: "impressoes", label: "Impressões", align: "right", render: (r) => fmtInt(r.impressoes) },
+    { key: "cliques", label: "Cliques", align: "right", render: (r) => fmtInt(r.cliques) },
+    {
+      key: "ctr",
+      label: "CTR",
+      align: "right",
+      render: (r) => fmtPct(r.ctr ?? undefined),
+      sortValue: (r) => r.ctr,
+    },
+    {
+      key: "cpm",
+      label: "CPM",
+      align: "right",
+      render: (r) => fmtBRL(r.cpm ?? undefined),
+      sortValue: (r) => r.cpm,
+    },
+    {
+      key: "frequencia",
+      label: "Freq.",
+      align: "right",
+      render: (r) => fmtNum(r.frequencia),
+      sortValue: (r) => r.frequencia,
+    },
+    { key: "leads", label: "Leads", align: "right", render: (r) => fmtInt(r.leads) },
+    {
+      key: "cpl",
+      label: "CPL",
+      align: "right",
+      render: (r) => fmtBRL(r.cpl ?? undefined),
+      sortValue: (r) => r.cpl,
+    },
+  ];
+}
+
+function Trafego() {
   const { data, isLoading, filters } = useDashboard();
   const [criativoSel, setCriativoSel] = useState<CriativoAgg | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -74,29 +132,7 @@ function Detalhamento() {
         </div>
       ),
     },
-    {
-      key: "investimento",
-      label: "Investimento",
-      align: "right",
-      render: (r) => fmtBRL(r.investimento),
-    },
-    { key: "impressoes", label: "Impressões", align: "right", render: (r) => fmtInt(r.impressoes) },
-    { key: "cliques", label: "Cliques", align: "right", render: (r) => fmtInt(r.cliques) },
-    { key: "leads", label: "Leads", align: "right", render: (r) => fmtInt(r.leads) },
-    {
-      key: "cpl",
-      label: "CPL",
-      align: "right",
-      render: (r) => fmtBRL(r.cpl ?? undefined),
-      sortValue: (r) => r.cpl,
-    },
-    {
-      key: "ctr",
-      label: "CTR",
-      align: "right",
-      render: (r) => fmtPct(r.ctr ?? undefined),
-      sortValue: (r) => r.ctr,
-    },
+    ...colsMetricasPadrao<CampanhaAgg>(),
   ];
 
   const colsCriativos: DataTableColumn<CriativoAgg>[] = [
@@ -109,38 +145,12 @@ function Detalhamento() {
         </span>
       ),
     },
-    {
-      key: "investimento",
-      label: "Investimento",
-      align: "right",
-      render: (r) => fmtBRL(r.investimento),
-    },
-    { key: "leads", label: "Leads", align: "right", render: (r) => fmtInt(r.leads) },
-    {
-      key: "cpl",
-      label: "CPL",
-      align: "right",
-      render: (r) => fmtBRL(r.cpl ?? undefined),
-      sortValue: (r) => r.cpl,
-    },
+    ...colsMetricasPadrao<CriativoAgg>(),
   ];
 
   const colsPublicos: DataTableColumn<PublicoAgg>[] = [
     { key: "publico", label: "Público" },
-    {
-      key: "investimento",
-      label: "Investimento",
-      align: "right",
-      render: (r) => fmtBRL(r.investimento),
-    },
-    { key: "leads", label: "Leads", align: "right", render: (r) => fmtInt(r.leads) },
-    {
-      key: "cpl",
-      label: "CPL",
-      align: "right",
-      render: (r) => fmtBRL(r.cpl ?? undefined),
-      sortValue: (r) => r.cpl,
-    },
+    ...colsMetricasPadrao<PublicoAgg>(),
   ];
 
   const tStyle = {
@@ -155,7 +165,7 @@ function Detalhamento() {
 
   return (
     <div className="space-y-6">
-      <ChartCard title="Campanhas" subtitle="Facebook Ads + Google Ads">
+      <ChartCard title="Campanhas" subtitle="Facebook Ads + Google Ads — métricas padronizadas">
         <DataTable
           columns={colsCamp}
           rows={campanhas}
@@ -163,26 +173,24 @@ function Detalhamento() {
         />
       </ChartCard>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard title="Ranking de Criativos" subtitle="Clique em um criativo para ver o preview">
-          <DataTable
-            columns={colsCriativos}
-            rows={criativos}
-            initialSort={{ key: "leads", dir: "desc" }}
-            highlightBest={{ key: "cpl", better: "lower" }}
-            onRowClick={abrirPreview}
-          />
-        </ChartCard>
+      <ChartCard title="Ranking de Criativos" subtitle="Clique em um criativo para ver o preview">
+        <DataTable
+          columns={colsCriativos}
+          rows={criativos}
+          initialSort={{ key: "leads", dir: "desc" }}
+          highlightBest={{ key: "cpl", better: "lower" }}
+          onRowClick={abrirPreview}
+        />
+      </ChartCard>
 
-        <ChartCard title="Ranking de Públicos" subtitle="Aba Fb_Publicos">
-          <DataTable
-            columns={colsPublicos}
-            rows={publicos}
-            initialSort={{ key: "leads", dir: "desc" }}
-            highlightBest={{ key: "cpl", better: "lower" }}
-          />
-        </ChartCard>
-      </div>
+      <ChartCard title="Ranking de Públicos" subtitle="Aba Fb_Publicos">
+        <DataTable
+          columns={colsPublicos}
+          rows={publicos}
+          initialSort={{ key: "leads", dir: "desc" }}
+          highlightBest={{ key: "cpl", better: "lower" }}
+        />
+      </ChartCard>
 
       <ChartCard title="Público Quente × Frio" subtitle="Investimento, Leads e CPL">
         <div className="h-72">
