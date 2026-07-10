@@ -24,3 +24,25 @@ export function getServerConfig() {
     //   stripeSecretKey: process.env.STRIPE_SECRET_KEY,
   };
 }
+
+/**
+ * Configuração da planilha oficial do dashboard (Google Sheets alimentado
+ * pelo Stract.io). Todos os valores podem ser sobrescritos por variáveis de
+ * ambiente para apontar para outra planilha sem recompilar.
+ *
+ * Abas (gids) da planilha atual:
+ *   - vendas        (OUTCOME_SALES)      → funil completo: leads, carrinho, compra, faturamento
+ *   - engajamento   (OUTCOME_ENGAGEMENT) → vídeo/thruplay
+ *   - reconhecimento(OUTCOME_AWARENESS)  → alcance
+ */
+export function getSheetsConfig() {
+  return {
+    spreadsheetId:
+      process.env.SHEETS_SPREADSHEET_ID ?? "1lm-JkDC1BEFYcVwKOnTFGlE9n3AJX8_FVkMGdfsUyU8",
+    gids: {
+      vendas: process.env.SHEETS_GID_VENDAS ?? "1740879822",
+      engajamento: process.env.SHEETS_GID_ENGAJAMENTO ?? "1531908467",
+      reconhecimento: process.env.SHEETS_GID_RECONHECIMENTO ?? "987627349",
+    },
+  };
+}

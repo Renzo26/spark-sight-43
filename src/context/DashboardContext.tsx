@@ -27,7 +27,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["sheets-data"],
-    queryFn: loadSheetsData,
+    queryFn: () => loadSheetsData(),
     staleTime: 60_000,
   });
 
