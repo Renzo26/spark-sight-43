@@ -125,15 +125,22 @@ interface NormRow {
   impressoes: number;
   alcance: number;
   cliques: number;
+  /** "Cliques no Link" (Action Link Clicks) — existe nas 3 abas. Base correta
+   * do Connect Rate (o Meta calcula LPV ÷ cliques no link, não cliques totais). */
+  linkClicks: number;
   leads: number;
-  /** "Landing Page View" do Meta — só a aba de vendas tem essa coluna. */
+  /** "Landing Page View" do Meta. Hoje só a aba de vendas exporta essa coluna;
+   * se ela for adicionada às outras abas no Stract, é lida automaticamente. */
   pageView: number;
   addToCart: number;
   initiateCheckout: number;
   purchase: number;
   faturamento: number;
-  /** true quando a linha veio da aba de vendas (única com pageView/funil). */
+  /** true quando a linha veio da aba de vendas (única com o funil de conversão). */
   temFunil: boolean;
+  /** true quando a aba de origem tinha a coluna "Landing Page View" (proxy de
+   * sessão). Define quais linhas entram no cálculo de sessões/Connect Rate. */
+  temSessao: boolean;
 }
 
 // ---------- Resolução de colunas pelo nome do cabeçalho ----------
@@ -153,6 +160,8 @@ interface ColSpec {
   include: string[];
   /** nenhuma destas substrings pode estar presente (desambigua colunas parecidas). */
   exclude?: string[];
+  /** coluna opcional: se ausente não gera erro (idx fica -1 e o valor vira 0). */
+  optional?: boolean;
 }
 
 // Colunas presentes nas 3 abas.
@@ -165,13 +174,18 @@ const BASE_COLS: ColSpec[] = [
   { key: "impressoes", include: ["impressions"] },
   { key: "alcance", include: ["reach"] },
   { key: "cliques", include: ["clicks"], exclude: ["link"] },
+  { key: "linkClicks", include: ["link clicks"] },
   { key: "investimento", include: ["spend"] },
+  // "Landing Page View" existe hoje só na aba de vendas, mas o Meta rastreia a
+  // métrica em todas as campanhas. Resolvida como OPCIONAL em toda aba: se você
+  // adicionar a coluna às abas de engajamento/reconhecimento no Stract, as
+  // sessões e o Connect Rate passam a incluí-las sem mexer no código.
+  { key: "pageView", include: ["landing page view"], optional: true },
 ];
 
-// Colunas de funil — só existem na aba de vendas (hasFunnel).
+// Colunas de funil de conversão — só existem na aba de vendas (hasFunnel).
 const FUNNEL_COLS: ColSpec[] = [
   { key: "leads", include: ["fb pixel lead"] },
-  { key: "pageView", include: ["landing page view"] },
   { key: "addToCart", include: ["add to cart"] },
   { key: "initiateCheckout", include: ["initiate checkout"] },
   { key: "purchase", include: ["purchase"], exclude: ["value"] },
@@ -198,7 +212,7 @@ function resolveColumns(header: string[], tabLabel: string, hasFunnel: boolean):
         spec.include.every((s) => h.includes(s)) &&
         (spec.exclude ?? []).every((s) => !h.includes(s)),
     );
-    if (idx === -1) missing.push(spec.key);
+    if (idx === -1 && !spec.optional) missing.push(spec.key);
     result[spec.key] = idx;
   }
   if (missing.length > 0) {
@@ -245,13 +259,16 @@ function normalizeTab(rows: string[][], tabLabel: string, hasFunnel: boolean): N
       impressoes: num(r[col.impressoes]),
       alcance: num(r[col.alcance]),
       cliques: num(r[col.cliques]),
+      linkClicks: num(r[col.linkClicks]),
       leads: hasFunnel ? num(r[col.leads]) : 0,
-      pageView: hasFunnel ? num(r[col.pageView]) : 0,
+      // pageView é opcional e pode existir em qualquer aba (não só vendas).
+      pageView: col.pageView >= 0 ? num(r[col.pageView]) : 0,
       addToCart: hasFunnel ? num(r[col.addToCart]) : 0,
       initiateCheckout: hasFunnel ? num(r[col.initiateCheckout]) : 0,
       purchase: hasFunnel ? num(r[col.purchase]) : 0,
       faturamento: hasFunnel ? num(r[col.faturamento]) : 0,
       temFunil: hasFunnel,
+      temSessao: col.pageView >= 0,
     });
   }
   return out;
@@ -467,20 +484,26 @@ function build(norm: NormRow[]): SheetsData {
     },
   ];
 
-  // Connect Rate (cliques → Landing Page View) — só a aba de vendas tem esse
-  // dado. Não existe uma segunda etapa "Home → páginas posteriores" na
-  // planilha, então `landingSessoes` fica sempre 0 (ver aggConnectRate, que
-  // trata isso como "sem dado" em vez de uma taxa de 0% enganosa).
-  const crMapDia = new Map<ISODate, { cliques: number; pageView: number }>();
+  // Connect Rate = Landing Page View ÷ Cliques no Link (mesma fórmula do Meta).
+  // Considera só as linhas cujas abas têm a coluna de LPV (`temSessao`) — hoje
+  // apenas vendas; se a coluna for adicionada às outras abas, elas entram
+  // automaticamente. `landingSessoes` fica 0 (a planilha não tem uma 2ª etapa
+  // "Home → páginas posteriores"; aggConnectRate trata isso como "sem dado").
+  const crMapDia = new Map<ISODate, { linkClicks: number; pageView: number }>();
   for (const r of norm) {
-    if (!r.temFunil) continue;
-    const cur = crMapDia.get(r.data) ?? { cliques: 0, pageView: 0 };
-    cur.cliques += r.cliques;
+    if (!r.temSessao) continue;
+    const cur = crMapDia.get(r.data) ?? { linkClicks: 0, pageView: 0 };
+    cur.linkClicks += r.linkClicks;
     cur.pageView += r.pageView;
     crMapDia.set(r.data, cur);
   }
   const connectRate: ConnectRateRow[] = Array.from(crMapDia.entries())
-    .map(([data, v]) => ({ data, cliques: v.cliques, homeSessoes: v.pageView, landingSessoes: 0 }))
+    .map(([data, v]) => ({
+      data,
+      cliques: v.linkClicks,
+      homeSessoes: v.pageView,
+      landingSessoes: 0,
+    }))
     .sort((a, b) => a.data.localeCompare(b.data));
 
   return {

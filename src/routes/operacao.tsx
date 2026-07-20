@@ -42,7 +42,10 @@ function Operacao() {
 
   const filtered = useMemo(() => (data ? applyFilters(data, filters) : null), [data, filters]);
   const kpis = useMemo(
-    () => (data && filtered ? computeKpis(filtered, data.ga4, data.conversoes, filters) : null),
+    () =>
+      data && filtered
+        ? computeKpis(filtered, data.ga4, data.conversoes, data.connectRate, filters)
+        : null,
     [data, filtered, filters],
   );
   const conv = useMemo(

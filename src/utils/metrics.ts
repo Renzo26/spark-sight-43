@@ -148,10 +148,12 @@ export function computeKpis(
   filtered: FilteredData,
   ga4: SheetsData["ga4"],
   conversoes: SheetsData["conversoes"],
+  connectRate: SheetsData["connectRate"],
   f: DashboardFilters,
 ): KpiTotais {
   const ga = ga4.filter((r) => inRange(r.data, f.dataInicio, f.dataFim));
   const conv = conversoes.filter((r) => inRange(r.data, f.dataInicio, f.dataFim));
+  const cr = connectRate.filter((r) => inRange(r.data, f.dataInicio, f.dataFim));
 
   const investimento = filtered.somatorio.reduce((s, r) => s + r.investimento, 0);
   const impressoes = filtered.somatorio.reduce((s, r) => s + r.impressoes, 0);
@@ -162,6 +164,10 @@ export function computeKpis(
   // não há GA4 conectado). `usuarios` continua vindo do GA4 real (ainda vazio).
   const sessoes = filtered.somatorio.reduce((s, r) => s + r.sessoes, 0);
   const usuarios = ga.reduce((s, r) => s + r.usuarios, 0);
+  // Connect Rate = sessões (LPV) ÷ cliques no link — mesma base do Meta. Os
+  // cliques no link vêm das linhas com dado de sessão (campo `cliques` das
+  // linhas de connectRate já é o Link Clicks), não do total de cliques.
+  const sessaoLinkClicks = cr.reduce((s, r) => s + r.cliques, 0);
 
   const addToCart = conv.reduce((s, r) => s + r.addToCart, 0);
   const checkout = conv.reduce((s, r) => s + r.initiateCheckout, 0);
@@ -184,7 +190,8 @@ export function computeKpis(
     sessoes,
     usuarios,
     custoPorSessao: safeDiv(investimento, sessoes),
-    connectRate: safeDiv(sessoes, cliques) != null ? (sessoes / cliques) * 100 : null,
+    connectRate:
+      safeDiv(sessoes, sessaoLinkClicks) != null ? (sessoes / sessaoLinkClicks) * 100 : null,
     addToCart,
     checkout,
     compras,

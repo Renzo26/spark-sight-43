@@ -66,24 +66,26 @@ function Analytics() {
         <ConnectCard
           icon={Home}
           color="mint"
-          titulo="Connect Rate — Home Page"
-          descricao="Sessões na Home a cada clique no anúncio"
+          titulo="Connect Rate"
+          descricao="Sessões (Landing Page View) a cada clique no link"
           valor={fmtPct(cr.homeRate)}
-          detalhe={`${fmtInt(cr.homeSessoes)} sessões / ${fmtInt(cr.cliques)} cliques`}
+          detalhe={`${fmtInt(cr.homeSessoes)} sessões / ${fmtInt(cr.cliques)} cliques no link`}
         />
         <ConnectCard
           icon={Target}
           color="blue"
-          titulo="Connect Rate — Landing pages posteriores"
-          descricao="Sessões que avançaram da Home para as próximas páginas"
+          titulo="Landing pages posteriores"
+          descricao="Sessões que avançaram para as próximas páginas (sem fonte na planilha)"
           valor={fmtPct(cr.landingRate)}
-          detalhe={`${fmtInt(cr.landingSessoes)} sessões / ${fmtInt(cr.homeSessoes)} na Home`}
+          detalhe={
+            cr.landingRate == null ? "Sem dado disponível" : `${fmtInt(cr.landingSessoes)} sessões`
+          }
         />
         <ConnectCard
           icon={MousePointerClick}
           color="lilac"
-          titulo="Cliques no anúncio"
-          descricao="Base do funil de conexão"
+          titulo="Cliques no link"
+          descricao="Base do Connect Rate"
           valor={fmtInt(cr.cliques)}
           detalhe="Total no período"
         />
