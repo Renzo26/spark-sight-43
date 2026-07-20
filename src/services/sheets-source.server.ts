@@ -10,10 +10,12 @@
 //   - engajamento    → OUTCOME_ENGAGEMENT → só métricas de topo/meio
 //   - reconhecimento → OUTCOME_AWARENESS  → só métricas de topo
 //
-// As três abas compartilham o mesmo bloco inicial de colunas (índices 0–14):
-//   0 Data · 3 Campanha · 5 Objetivo · 6 Conjunto/Adset · 7 Anúncio ·
-//   9 Impressões · 10 Alcance · 12 Cliques · 14 Investimento
-// A aba de vendas adiciona o funil (índices específicos abaixo).
+// As colunas são resolvidas pelo NOME do cabeçalho (ver `resolveColumns`),
+// não por posição fixa: o Stract já reordenou/inseriu colunas (ex.: "Campaign
+// Status") pelo menos uma vez, o que quebrava silenciosamente o parser
+// baseado em índice. Os cabeçalhos também variam entre abas — a de vendas é
+// bilíngue ("Investimento Spend..."), as outras só em inglês ("Spend...") —
+// por isso o matcher usa substrings normalizadas (sem acento, minúsculas).
 import { getSheetsConfig } from "@/lib/config.server";
 import type {
   ConnectRateRow,
@@ -130,63 +132,119 @@ interface NormRow {
   faturamento: number;
 }
 
-// Índices de coluna. Bloco comum às três abas + funil exclusivo da aba de vendas.
-const COL = {
-  data: 0,
-  campanha: 3,
-  objetivo: 5,
-  conjunto: 6,
-  anuncio: 7,
-  impressoes: 9,
-  alcance: 10,
-  cliques: 12,
-  investimento: 14,
-  // funil (só na aba de vendas):
-  leads: 17,
-  addToCart: 19,
-  initiateCheckout: 20,
-  purchase: 21,
-  faturamento: 22,
-} as const;
+// ---------- Resolução de colunas pelo nome do cabeçalho ----------
+
+/** minúsculas, sem acento, sem espaços nas pontas — para comparar headers com robustez. */
+function normalizeHeader(raw: string): string {
+  return raw
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+interface ColSpec {
+  key: keyof NormRow | "leads" | "addToCart" | "initiateCheckout" | "purchase" | "faturamento";
+  /** todas as substrings precisam estar presentes no header normalizado. */
+  include: string[];
+  /** nenhuma destas substrings pode estar presente (desambigua colunas parecidas). */
+  exclude?: string[];
+}
+
+// Colunas presentes nas 3 abas.
+const BASE_COLS: ColSpec[] = [
+  { key: "data", include: ["date"] },
+  { key: "campanha", include: ["campaign name"] },
+  { key: "objetivo", include: ["objective"] },
+  { key: "conjunto", include: ["adset name"] },
+  { key: "anuncio", include: ["ad name"] },
+  { key: "impressoes", include: ["impressions"] },
+  { key: "alcance", include: ["reach"] },
+  { key: "cliques", include: ["clicks"], exclude: ["link"] },
+  { key: "investimento", include: ["spend"] },
+];
+
+// Colunas de funil — só existem na aba de vendas (hasFunnel).
+const FUNNEL_COLS: ColSpec[] = [
+  { key: "leads", include: ["fb pixel lead"] },
+  { key: "addToCart", include: ["add to cart"] },
+  { key: "initiateCheckout", include: ["initiate checkout"] },
+  { key: "purchase", include: ["purchase"], exclude: ["value"] },
+  { key: "faturamento", include: ["value", "purchase"] },
+];
+
+type ColIndex = Record<string, number>;
+
+/**
+ * Resolve o índice de cada coluna pelo nome do cabeçalho da aba (não por
+ * posição fixa). Lança erro se alguma coluna obrigatória não for encontrada
+ * — preferível a seguir com índice errado e corromper os números em silêncio
+ * (foi exatamente isso que quebrou o dashboard quando o Stract inseriu a
+ * coluna "Campaign Status" no meio do bloco de métricas).
+ */
+function resolveColumns(header: string[], tabLabel: string, hasFunnel: boolean): ColIndex {
+  const normalized = header.map(normalizeHeader);
+  const specs = hasFunnel ? [...BASE_COLS, ...FUNNEL_COLS] : BASE_COLS;
+  const result: ColIndex = {};
+  const missing: string[] = [];
+  for (const spec of specs) {
+    const idx = normalized.findIndex(
+      (h) =>
+        spec.include.every((s) => h.includes(s)) &&
+        (spec.exclude ?? []).every((s) => !h.includes(s)),
+    );
+    if (idx === -1) missing.push(spec.key);
+    result[spec.key] = idx;
+  }
+  if (missing.length > 0) {
+    throw new Error(
+      `Aba "${tabLabel}": não encontrei a(s) coluna(s) [${missing.join(", ")}] no cabeçalho. ` +
+        `A planilha pode ter sido reestruturada — confira os nomes das colunas no Stract.io.`,
+    );
+  }
+  return result;
+}
 
 function csvUrl(spreadsheetId: string, gid: string): string {
   return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&gid=${gid}`;
 }
 
-async function fetchTab(spreadsheetId: string, gid: string): Promise<string[][]> {
+async function fetchTab(spreadsheetId: string, gid: string, tabLabel: string): Promise<string[][]> {
   const res = await fetch(csvUrl(spreadsheetId, gid), {
     redirect: "follow",
     headers: { accept: "text/csv" },
   });
   if (!res.ok) {
-    throw new Error(`Falha ao ler a aba ${gid} da planilha (HTTP ${res.status}).`);
+    throw new Error(`Falha ao ler a aba "${tabLabel}" da planilha (HTTP ${res.status}).`);
   }
   return parseCsv(await res.text());
 }
 
 /** Converte as linhas cruas de uma aba em NormRow[]. `hasFunnel` = aba de vendas. */
-function normalizeTab(rows: string[][], hasFunnel: boolean): NormRow[] {
+function normalizeTab(rows: string[][], tabLabel: string, hasFunnel: boolean): NormRow[] {
+  if (rows.length === 0) return [];
+  const col = resolveColumns(rows[0], tabLabel, hasFunnel);
   const out: NormRow[] = [];
   // rows[0] é o cabeçalho (gviz inclui a linha de títulos).
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i];
-    const data = isoDate(r[COL.data]);
+    const data = isoDate(r[col.data]);
     if (!data) continue; // ignora linhas sem data válida (vazias/rodapés)
     out.push({
       data,
-      campanha: (r[COL.campanha] ?? "").trim() || "(sem campanha)",
-      objetivo: (r[COL.objetivo] ?? "").trim(),
-      conjunto: (r[COL.conjunto] ?? "").trim() || "(sem conjunto)",
-      anuncio: (r[COL.anuncio] ?? "").trim() || "(sem anúncio)",
-      investimento: num(r[COL.investimento]),
-      impressoes: num(r[COL.impressoes]),
-      alcance: num(r[COL.alcance]),
-      cliques: num(r[COL.cliques]),
-      leads: hasFunnel ? num(r[COL.leads]) : 0,
-      addToCart: hasFunnel ? num(r[COL.addToCart]) : 0,
-      initiateCheckout: hasFunnel ? num(r[COL.initiateCheckout]) : 0,
-      purchase: hasFunnel ? num(r[COL.purchase]) : 0,
-      faturamento: hasFunnel ? num(r[COL.faturamento]) : 0,
+      campanha: (r[col.campanha] ?? "").trim() || "(sem campanha)",
+      objetivo: (r[col.objetivo] ?? "").trim(),
+      conjunto: (r[col.conjunto] ?? "").trim() || "(sem conjunto)",
+      anuncio: (r[col.anuncio] ?? "").trim() || "(sem anúncio)",
+      investimento: num(r[col.investimento]),
+      impressoes: num(r[col.impressoes]),
+      alcance: num(r[col.alcance]),
+      cliques: num(r[col.cliques]),
+      leads: hasFunnel ? num(r[col.leads]) : 0,
+      addToCart: hasFunnel ? num(r[col.addToCart]) : 0,
+      initiateCheckout: hasFunnel ? num(r[col.initiateCheckout]) : 0,
+      purchase: hasFunnel ? num(r[col.purchase]) : 0,
+      faturamento: hasFunnel ? num(r[col.faturamento]) : 0,
     });
   }
   return out;
@@ -249,8 +307,7 @@ function build(norm: NormRow[]): SheetsData {
   for (const r of norm) {
     const k = `${r.data}::${r.campanha}`;
     const cur =
-      fbMap.get(k) ??
-      ({ data: r.data, campanha: r.campanha, ...emptyAcc() } as FacebookAdsRow);
+      fbMap.get(k) ?? ({ data: r.data, campanha: r.campanha, ...emptyAcc() } as FacebookAdsRow);
     cur.investimento += r.investimento;
     cur.impressoes += r.impressoes;
     cur.alcance += r.alcance;
@@ -295,9 +352,14 @@ function build(norm: NormRow[]): SheetsData {
   const fMap = new Map<ISODate, PublicoQFRow>();
   for (const r of norm) {
     const target = temperatura(r.campanha) === "Quente" ? qMap : fMap;
-    const cur =
-      target.get(r.data) ??
-      ({ data: r.data, investimento: 0, impressoes: 0, alcance: 0, cliques: 0, leads: 0 });
+    const cur = target.get(r.data) ?? {
+      data: r.data,
+      investimento: 0,
+      impressoes: 0,
+      alcance: 0,
+      cliques: 0,
+      leads: 0,
+    };
     cur.investimento += r.investimento;
     cur.impressoes += r.impressoes;
     cur.alcance += r.alcance;
@@ -416,18 +478,41 @@ function build(norm: NormRow[]): SheetsData {
   };
 }
 
-/** Busca as abas de dados, normaliza e monta o SheetsData oficial do dashboard. */
+/**
+ * Busca as abas de dados, normaliza e monta o SheetsData oficial do dashboard.
+ * Cada aba é resolvida independentemente (Promise.allSettled): se uma aba
+ * falhar (rede, HTTP, coluna ausente após reestruturação), as demais ainda
+ * alimentam o dashboard em vez de derrubar tudo por causa de uma só fonte.
+ */
 export async function buildSheetsData(): Promise<SheetsData> {
   const { spreadsheetId, gids } = getSheetsConfig();
-  const [vendas, engajamento, reconhecimento] = await Promise.all([
-    fetchTab(spreadsheetId, gids.vendas),
-    fetchTab(spreadsheetId, gids.engajamento),
-    fetchTab(spreadsheetId, gids.reconhecimento),
-  ]);
-  const norm: NormRow[] = [
-    ...normalizeTab(vendas, true),
-    ...normalizeTab(engajamento, false),
-    ...normalizeTab(reconhecimento, false),
+  const tabs: { label: string; gid: string; hasFunnel: boolean }[] = [
+    { label: "vendas", gid: gids.vendas, hasFunnel: true },
+    { label: "engajamento", gid: gids.engajamento, hasFunnel: false },
+    { label: "reconhecimento", gid: gids.reconhecimento, hasFunnel: false },
   ];
+
+  const results = await Promise.allSettled(
+    tabs.map(async (tab) => {
+      const rows = await fetchTab(spreadsheetId, tab.gid, tab.label);
+      return normalizeTab(rows, tab.label, tab.hasFunnel);
+    }),
+  );
+
+  const norm: NormRow[] = [];
+  results.forEach((res, i) => {
+    if (res.status === "fulfilled") {
+      norm.push(...res.value);
+    } else {
+      console.error(`[sheets] aba "${tabs[i].label}" falhou e foi ignorada:`, res.reason);
+    }
+  });
+
+  if (norm.length === 0) {
+    throw new Error(
+      "Nenhuma aba da planilha pôde ser lida — verifique o ID da planilha, os gids e se ela está compartilhada publicamente.",
+    );
+  }
+
   return build(norm);
 }
