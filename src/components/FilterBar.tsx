@@ -1,4 +1,5 @@
 import { Calendar, PanelLeftClose, PanelLeftOpen, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 import { useDashboard } from "@/context/DashboardContext";
 import { HEADER_BG } from "@/components/Sidebar";
 
@@ -11,7 +12,17 @@ interface FilterBarProps {
 }
 
 export function FilterBar({ sidebarOpen = true, onToggleSidebar }: FilterBarProps) {
-  const { filters, setFilters, refetch, data } = useDashboard();
+  const { filters, setFilters, refetch, isFetching, data } = useDashboard();
+
+  const handleRefresh = async () => {
+    const ok = await refetch();
+    if (ok) {
+      toast.success("Dados atualizados.");
+    } else {
+      toast.error("Não foi possível atualizar os dados. Tente novamente em instantes.");
+    }
+  };
+
   const ultima = data
     ? new Date(data.ultimaAtualizacao).toLocaleString("pt-BR", {
         day: "2-digit",
@@ -70,9 +81,7 @@ export function FilterBar({ sidebarOpen = true, onToggleSidebar }: FilterBarProp
 
         {/* Direita: data + atualizar */}
         <div className="flex flex-wrap items-center gap-3">
-          <span className="hidden lg:inline text-[11px] text-white/55">
-            Atualizado em {ultima}
-          </span>
+          <span className="hidden lg:inline text-[11px] text-white/55">Atualizado em {ultima}</span>
 
           <div className="flex items-center gap-2 rounded-xl bg-white px-3 py-1.5 text-slate-700">
             <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
@@ -92,11 +101,12 @@ export function FilterBar({ sidebarOpen = true, onToggleSidebar }: FilterBarProp
           </div>
 
           <button
-            onClick={refetch}
-            className="inline-flex items-center gap-2 h-9 px-3 rounded-xl bg-white text-slate-800 text-sm font-semibold shadow-xs hover:bg-white/90 transition"
+            onClick={handleRefresh}
+            disabled={isFetching}
+            className="inline-flex items-center gap-2 h-9 px-3 rounded-xl bg-white text-slate-800 text-sm font-semibold shadow-xs hover:bg-white/90 transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <RefreshCw className="w-4 h-4" />
-            Atualizar
+            <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />
+            {isFetching ? "Atualizando…" : "Atualizar"}
           </button>
         </div>
       </div>

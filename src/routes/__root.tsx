@@ -14,6 +14,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { MobileTopBar } from "@/components/MobileTopBar";
 import { FilterBar } from "@/components/FilterBar";
 import { DashboardProvider } from "@/context/DashboardContext";
+import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
   return (
@@ -47,7 +48,10 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         </p>
         <div className="mt-6">
           <button
-            onClick={() => { router.invalidate(); reset(); }}
+            onClick={() => {
+              router.invalidate();
+              reset();
+            }}
             className="rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
           >
             Tentar novamente
@@ -64,7 +68,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Dashboard de Tráfego — WNBF Brazil" },
-      { name: "description", content: "Painel de métricas de tráfego pago para o lançamento WNBF Brazil." },
+      {
+        name: "description",
+        content: "Painel de métricas de tráfego pago para o lançamento WNBF Brazil.",
+      },
     ],
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -85,7 +92,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 function RootShell({ children }: { children: ReactNode }) {
   return (
     <html lang="pt-BR">
-      <head><HeadContent /></head>
+      <head>
+        <HeadContent />
+      </head>
       <body>
         {children}
         <Scripts />
@@ -114,6 +123,7 @@ function RootComponent() {
             </main>
           </div>
         </div>
+        <Toaster position="top-right" richColors />
       </DashboardProvider>
     </QueryClientProvider>
   );

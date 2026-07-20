@@ -8,7 +8,10 @@ interface Ctx {
   data: SheetsData | undefined;
   isLoading: boolean;
   isError: boolean;
-  refetch: () => void;
+  /** true durante qualquer busca em andamento (inicial ou refetch manual). */
+  isFetching: boolean;
+  /** dispara uma busca nova e resolve `true`/`false` conforme o resultado. */
+  refetch: () => Promise<boolean>;
   filters: DashboardFilters;
   setFilters: (next: Partial<DashboardFilters>) => void;
 }
@@ -25,11 +28,22 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const [filters, setFiltersState] = useState<DashboardFilters>(INITIAL);
   const [touchedDates, setTouchedDates] = useState(false);
 
-  const { data, isLoading, isError, refetch } = useQuery({
+  const {
+    data,
+    isLoading,
+    isError,
+    isFetching,
+    refetch: refetchQuery,
+  } = useQuery({
     queryKey: ["sheets-data"],
     queryFn: () => loadSheetsData(),
     staleTime: 60_000,
   });
+
+  const refetch = async (): Promise<boolean> => {
+    const result = await refetchQuery();
+    return !result.isError;
+  };
 
   // Inicializa o intervalo com o range completo dos dados na primeira carga.
   const filtersResolved = useMemo<DashboardFilters>(() => {
@@ -51,7 +65,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         data,
         isLoading,
         isError,
-        refetch: () => void refetch(),
+        isFetching,
+        refetch,
         filters: filtersResolved,
         setFilters,
       }}
