@@ -8,6 +8,8 @@ export interface SomatorioRow {
   alcance: number;
   cliques: number;
   leads: number;
+  /** Proxy de sessão: "Landing Page View" do Meta (só existe na aba de vendas). */
+  sessoes: number;
 }
 
 export interface FacebookAdsRow {
@@ -18,6 +20,8 @@ export interface FacebookAdsRow {
   alcance: number;
   cliques: number;
   leads: number;
+  /** Proxy de sessão: "Landing Page View" do Meta (só existe na aba de vendas). */
+  sessoes: number;
 }
 
 export interface GoogleAdsRow {

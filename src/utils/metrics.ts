@@ -88,6 +88,7 @@ export function applyFilters(data: SheetsData, f: DashboardFilters): FilteredDat
     alcance?: number;
     cliques: number;
     leads: number;
+    sessoes?: number;
   }) => {
     const cur = byDate.get(r.data) ?? {
       data: r.data,
@@ -96,12 +97,14 @@ export function applyFilters(data: SheetsData, f: DashboardFilters): FilteredDat
       alcance: 0,
       cliques: 0,
       leads: 0,
+      sessoes: 0,
     };
     cur.investimento += r.investimento;
     cur.impressoes += r.impressoes;
     cur.alcance += r.alcance ?? 0;
     cur.cliques += r.cliques;
     cur.leads += r.leads;
+    cur.sessoes += r.sessoes ?? 0;
     byDate.set(r.data, cur);
   };
   fb.forEach(upsert);
@@ -155,7 +158,9 @@ export function computeKpis(
   const alcance = filtered.somatorio.reduce((s, r) => s + r.alcance, 0);
   const cliques = filtered.somatorio.reduce((s, r) => s + r.cliques, 0);
   const leads = filtered.somatorio.reduce((s, r) => s + r.leads, 0);
-  const sessoes = ga.reduce((s, r) => s + r.sessoes, 0);
+  // "Sessões" usa Landing Page View do Meta (única fonte disponível hoje —
+  // não há GA4 conectado). `usuarios` continua vindo do GA4 real (ainda vazio).
+  const sessoes = filtered.somatorio.reduce((s, r) => s + r.sessoes, 0);
   const usuarios = ga.reduce((s, r) => s + r.usuarios, 0);
 
   const addToCart = conv.reduce((s, r) => s + r.addToCart, 0);
@@ -557,8 +562,12 @@ export function aggConnectRate(
     homeSessoes,
     landingSessoes,
     homeRate: safeDiv(homeSessoes, cliques) != null ? (homeSessoes / cliques) * 100 : null,
+    // landingSessoes é sempre 0 hoje (a planilha não tem uma 2ª etapa de
+    // sessão) — tratamos como "sem dado" em vez de uma taxa de 0% enganosa.
     landingRate:
-      safeDiv(landingSessoes, homeSessoes) != null ? (landingSessoes / homeSessoes) * 100 : null,
+      landingSessoes > 0 && safeDiv(landingSessoes, homeSessoes) != null
+        ? (landingSessoes / homeSessoes) * 100
+        : null,
   };
 }
 
@@ -581,7 +590,7 @@ export function serieConnectRate(
       homeRate:
         safeDiv(r.homeSessoes, r.cliques) != null ? (r.homeSessoes / r.cliques) * 100 : null,
       landingRate:
-        safeDiv(r.landingSessoes, r.homeSessoes) != null
+        r.landingSessoes > 0 && safeDiv(r.landingSessoes, r.homeSessoes) != null
           ? (r.landingSessoes / r.homeSessoes) * 100
           : null,
     }));

@@ -126,10 +126,14 @@ interface NormRow {
   alcance: number;
   cliques: number;
   leads: number;
+  /** "Landing Page View" do Meta — só a aba de vendas tem essa coluna. */
+  pageView: number;
   addToCart: number;
   initiateCheckout: number;
   purchase: number;
   faturamento: number;
+  /** true quando a linha veio da aba de vendas (única com pageView/funil). */
+  temFunil: boolean;
 }
 
 // ---------- Resolução de colunas pelo nome do cabeçalho ----------
@@ -167,6 +171,7 @@ const BASE_COLS: ColSpec[] = [
 // Colunas de funil — só existem na aba de vendas (hasFunnel).
 const FUNNEL_COLS: ColSpec[] = [
   { key: "leads", include: ["fb pixel lead"] },
+  { key: "pageView", include: ["landing page view"] },
   { key: "addToCart", include: ["add to cart"] },
   { key: "initiateCheckout", include: ["initiate checkout"] },
   { key: "purchase", include: ["purchase"], exclude: ["value"] },
@@ -241,10 +246,12 @@ function normalizeTab(rows: string[][], tabLabel: string, hasFunnel: boolean): N
       alcance: num(r[col.alcance]),
       cliques: num(r[col.cliques]),
       leads: hasFunnel ? num(r[col.leads]) : 0,
+      pageView: hasFunnel ? num(r[col.pageView]) : 0,
       addToCart: hasFunnel ? num(r[col.addToCart]) : 0,
       initiateCheckout: hasFunnel ? num(r[col.initiateCheckout]) : 0,
       purchase: hasFunnel ? num(r[col.purchase]) : 0,
       faturamento: hasFunnel ? num(r[col.faturamento]) : 0,
+      temFunil: hasFunnel,
     });
   }
   return out;
@@ -276,9 +283,10 @@ interface Acc {
   alcance: number;
   cliques: number;
   leads: number;
+  sessoes: number;
 }
 function emptyAcc(): Acc {
-  return { investimento: 0, impressoes: 0, alcance: 0, cliques: 0, leads: 0 };
+  return { investimento: 0, impressoes: 0, alcance: 0, cliques: 0, leads: 0, sessoes: 0 };
 }
 function addInto(acc: Acc, r: NormRow): void {
   acc.investimento += r.investimento;
@@ -286,6 +294,7 @@ function addInto(acc: Acc, r: NormRow): void {
   acc.alcance += r.alcance;
   acc.cliques += r.cliques;
   acc.leads += r.leads;
+  acc.sessoes += r.pageView;
 }
 
 // ---------- Montagem do SheetsData ----------
@@ -313,6 +322,7 @@ function build(norm: NormRow[]): SheetsData {
     cur.alcance += r.alcance;
     cur.cliques += r.cliques;
     cur.leads += r.leads;
+    cur.sessoes += r.pageView;
     fbMap.set(k, cur);
   }
   const facebookAds = Array.from(fbMap.values());
@@ -457,8 +467,21 @@ function build(norm: NormRow[]): SheetsData {
     },
   ];
 
-  // Seções sem fonte na planilha atual — ficam vazias e a UI degrada para "—".
-  const connectRate: ConnectRateRow[] = [];
+  // Connect Rate (cliques → Landing Page View) — só a aba de vendas tem esse
+  // dado. Não existe uma segunda etapa "Home → páginas posteriores" na
+  // planilha, então `landingSessoes` fica sempre 0 (ver aggConnectRate, que
+  // trata isso como "sem dado" em vez de uma taxa de 0% enganosa).
+  const crMapDia = new Map<ISODate, { cliques: number; pageView: number }>();
+  for (const r of norm) {
+    if (!r.temFunil) continue;
+    const cur = crMapDia.get(r.data) ?? { cliques: 0, pageView: 0 };
+    cur.cliques += r.cliques;
+    cur.pageView += r.pageView;
+    crMapDia.set(r.data, cur);
+  }
+  const connectRate: ConnectRateRow[] = Array.from(crMapDia.entries())
+    .map(([data, v]) => ({ data, cliques: v.cliques, homeSessoes: v.pageView, landingSessoes: 0 }))
+    .sort((a, b) => a.data.localeCompare(b.data));
 
   return {
     somatorio,
